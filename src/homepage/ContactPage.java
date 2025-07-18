@@ -7,9 +7,7 @@ package homepage;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.util.Properties;
-import jakarta.mail.*;
-import jakarta.mail.internet.*;
+import java.sql.*;
 import static javax.swing.WindowConstants.EXIT_ON_CLOSE;
 
 public class ContactPage extends JFrame {
@@ -17,6 +15,10 @@ public class ContactPage extends JFrame {
     JLabel homeLabel, aboutLabel, contactLabel;
     private JTextField nameField, emailField;
     private JTextArea messageArea;
+
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/hospital_db";
+    private static final String DB_USER = "root";
+    private static final String DB_PASS = "";
 
     public ContactPage() {
         setTitle("Contact - Hospital Management System");
@@ -48,13 +50,12 @@ public class ContactPage extends JFrame {
         homeLabel = createNavLabel("Home");
         aboutLabel = createNavLabel("About");
         contactLabel = createNavLabel("Contact");
-
-        contactLabel.setForeground(Color.YELLOW); // Highlight current page
+        contactLabel.setForeground(Color.YELLOW);
 
         homeLabel.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent e) {
                 dispose();
-                new HospitalHomePage(); // Make sure this class exists
+                new HospitalHomePage();
             }
         });
 
@@ -102,7 +103,7 @@ public class ContactPage extends JFrame {
         gbc.insets = new Insets(20, 30, 20, 30);
         gbc.fill = GridBagConstraints.BOTH;
 
-        // Left panel: Contact Information Card
+        // Left: Info Card
         JPanel infoCard = new JPanel();
         infoCard.setLayout(new BoxLayout(infoCard, BoxLayout.Y_AXIS));
         infoCard.setBackground(Color.WHITE);
@@ -114,11 +115,8 @@ public class ContactPage extends JFrame {
 
         JLabel infoTitle = new JLabel("Contact Information");
         infoTitle.setFont(new Font("Segoe UI", Font.BOLD, 22));
-        infoTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
         infoCard.add(infoTitle);
-
         infoCard.add(Box.createRigidArea(new Dimension(0, 25)));
-
         infoCard.add(makeInfoLabel("🏥  MediCare Multi-specialty Hospital"));
         infoCard.add(makeInfoLabel("📍  123 Health Ave, Healing City, India"));
         infoCard.add(makeInfoLabel("📞  +91 98765 43210"));
@@ -129,7 +127,7 @@ public class ContactPage extends JFrame {
         gbc.gridy = 0;
         mainPanel.add(infoCard, gbc);
 
-        // Right panel: Contact Form Card
+        // Right: Form
         JPanel formCard = new JPanel(new GridBagLayout());
         formCard.setBackground(Color.WHITE);
         formCard.setPreferredSize(new Dimension(500, 450));
@@ -153,7 +151,6 @@ public class ContactPage extends JFrame {
 
         fgbc.gridwidth = 1;
         fgbc.gridy++;
-
         formCard.add(new JLabel("Your Name:"), fgbc);
         nameField = new JTextField(25);
         fgbc.gridx = 1;
@@ -169,7 +166,7 @@ public class ContactPage extends JFrame {
         fgbc.gridx = 0;
         fgbc.gridy++;
         formCard.add(new JLabel("Message:"), fgbc);
-        messageArea = new JTextArea(6, 25);
+        messageArea = new JTextArea(10, 25); // Increased height
         messageArea.setLineWrap(true);
         messageArea.setWrapStyleWord(true);
         JScrollPane scrollPane = new JScrollPane(messageArea);
@@ -178,12 +175,12 @@ public class ContactPage extends JFrame {
 
         fgbc.gridx = 1;
         fgbc.gridy++;
-        JButton sendBtn = new JButton("Send Message");
+        JButton sendBtn = new JButton("Submit Message");
         sendBtn.setBackground(new Color(10, 66, 117));
         sendBtn.setForeground(Color.WHITE);
         sendBtn.setFont(new Font("Segoe UI", Font.BOLD, 16));
         sendBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        sendBtn.addActionListener(e -> sendEmail());
+        sendBtn.addActionListener(e -> saveToDatabase());
         formCard.add(sendBtn, fgbc);
 
         gbc.gridx = 1;
@@ -196,11 +193,10 @@ public class ContactPage extends JFrame {
         label.setFont(new Font("Segoe UI", Font.PLAIN, 16));
         label.setForeground(new Color(50, 50, 50));
         label.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
-        label.setAlignmentX(Component.LEFT_ALIGNMENT);
         return label;
     }
 
-    private void sendEmail() {
+    private void saveToDatabase() {
         String name = nameField.getText().trim();
         String email = emailField.getText().trim();
         String message = messageArea.getText().trim();
@@ -210,39 +206,22 @@ public class ContactPage extends JFrame {
             return;
         }
 
-        String to = "aroramayank488@gmail.com";  // Your receiving email
-        String from = email;
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASS)) {
+            String query = "INSERT INTO contact_messages (name, email, message) VALUES (?, ?, ?)";
+            PreparedStatement pstmt = conn.prepareStatement(query);
+            pstmt.setString(1, name);
+            pstmt.setString(2, email);
+            pstmt.setString(3, message);
+            pstmt.executeUpdate();
 
-        Properties props = new Properties();
-        props.put("mail.smtp.host", "smtp.gmail.com");
-        props.put("mail.smtp.port", "587");
-        props.put("mail.smtp.auth", "true");
-        props.put("mail.smtp.starttls.enable", "true");
-
-        String user = "aroramayank488@gmail.com"; // Your Gmail address
-        String pass = "zojw kkfv hdyl etih";       // App password
-
-        Session session = Session.getInstance(props, new Authenticator() {
-            protected PasswordAuthentication getPasswordAuthentication() {
-                return new PasswordAuthentication(user, pass);
-            }
-        });
-
-        try {
-            Message msg = new MimeMessage(session);
-            msg.setFrom(new InternetAddress(from));
-            msg.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
-            msg.setSubject("Query from " + name);
-            msg.setText("Name: " + name + "\nEmail: " + email + "\n\nMessage:\n" + message);
-            Transport.send(msg);
-
-            JOptionPane.showMessageDialog(this, "Message sent successfully!");
+            JOptionPane.showMessageDialog(this, "Message submitted successfully!");
             nameField.setText("");
             emailField.setText("");
             messageArea.setText("");
+
         } catch (Exception ex) {
             ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Failed to send message.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Failed to submit message.", "Database Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -250,6 +229,7 @@ public class ContactPage extends JFrame {
         SwingUtilities.invokeLater(ContactPage::new);
     }
 }
+
 
 
 
